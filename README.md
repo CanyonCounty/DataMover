@@ -15,10 +15,12 @@ It DOES NOT connect to SQL Server it generated sql create/insert scripts and a r
 
 All "dumps" are created in the following directory like structure.
 
+<pre>
 C:\Temp         - after all this is temp stuff right
   \DBMover      - Just for grouping
     \Alias Name - Why bother asking for a name if you already have a unique one in ODBC or BDE right?
       \<DATE>   - The date (in MMDDYYYY format) the Mover was called
+</pre>
 
 I chose to add the date so you can do a diff between dumps to see what's changed (cheaper than paying $$$ for a db compare utility)
 
