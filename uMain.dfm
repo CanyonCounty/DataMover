@@ -1,6 +1,6 @@
 object frmMain: TfrmMain
-  Left = 291
-  Top = 114
+  Left = 218
+  Top = 162
   AutoScroll = False
   Caption = 'BDE DBMover'
   ClientHeight = 468
@@ -362,6 +362,18 @@ object frmMain: TfrmMain
         ParentShowHint = False
         ShowHint = True
         TabOrder = 14
+      end
+      object cbSort: TCheckBox
+        Left = 306
+        Top = 0
+        Width = 183
+        Height = 17
+        Hint = 'Sort the column names (handy for doing a table compare)'
+        Caption = 'Sort Column Names (Create Only)'
+        ParentShowHint = False
+        ShowHint = False
+        TabOrder = 15
+        OnClick = cbSortClick
       end
     end
     object tsCustom: TTabSheet

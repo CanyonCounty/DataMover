@@ -52,6 +52,7 @@ type
     rgBinary: TRadioGroup;
     lblHint: TLabel;
     cbOutput: TCheckBox;
+    cbSort: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure cboBDECloseUp(Sender: TObject);
     procedure lbTablesClick(Sender: TObject);
@@ -67,6 +68,7 @@ type
     procedure bExcludeClick(Sender: TObject);
     procedure bIncludeClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
+    procedure cbSortClick(Sender: TObject);
   private
     { Private declarations }
     _debug: Boolean;
@@ -75,10 +77,12 @@ type
     _oldIndex: Integer;
     _insert: Boolean;
     _2005: Boolean;
+    _sort: Boolean;
 //    _total: Integer;
     _sl: TStringList;
     _Query: TDBWrapper;
     _tempdir: string;
+    _tableName: string;
     _exclude, _include: string;
     procedure Generate;
     procedure GetTables;
@@ -149,6 +153,7 @@ begin
   Session.Active := True;
   bExclude.Enabled := lbTables.Items.Count > 0;
   bInclude.Enabled := lbTables.Items.Count > 0;
+  //lbTables.Items.Insert(0, 'catalog_entry_tbl');
 end;
 
 procedure TfrmMain.lbTablesClick(Sender: TObject);
@@ -159,15 +164,38 @@ end;
 procedure TfrmMain.GenerateSQL(table: TDBWrapper; name, schema: string);
 var
   i: Integer;
+  sl: TStringList;
+  f: TField;
 begin
   //memo.Enabled := False;
   AddSQL('create table [' + schema + '].[' + name + '] (');
+  {
   for i := 0 to pred(pred(table.FieldCount)) do
   begin
     AddSQL(FieldToSQL(table.Fields[i]) + ',');
   end;
-  AddSQL(FieldToSQL(table.Fields[pred(table.FieldCount)]));
-  AddSQL(')');
+  }
+  sl := TStringList.Create;
+  try
+    for i := 0 to pred(table.FieldCount) do
+      sl.Add(table.Fields[i].FieldName);
+
+    if _sort then sl.Sort;
+
+    AddSQL('  [ID] [int] IDENTITY(1,1) NOT NULL,');
+    for i := 0 to pred(pred(sl.Count)) do
+    begin
+      f := table.Fields.FindField(sl[i]);
+      AddSQL(FieldToSQL(f) + ',');
+    end;
+
+    //AddSQL(FieldToSQL(table.Fields[pred(table.FieldCount)]));
+    AddSQL(FieldToSQL(table.Fields.FindField(sl[pred(sl.Count)])));
+    AddSQL(')');
+
+  finally
+    FreeAndNil(sl);
+  end;
 
   if not cbDont.Checked then
   SendMessage(memo.Handle,  { HWND of the Memo Control }
@@ -184,7 +212,7 @@ var
 begin
   Result := '  [' + field.FieldName + '] ';
   (*
-ftUnknown, ftString, ftSmallint, ftInteger, ftWord,
+    ftUnknown, ftString, ftSmallint, ftInteger, ftWord,
     ftBoolean, ftFloat, ftCurrency, ftBCD, ftDate, ftTime, ftDateTime,
     ftBytes, ftVarBytes, ftAutoInc, ftBlob, ftMemo, ftGraphic, ftFmtMemo,
     ftParadoxOle, ftDBaseOle, ftTypedBinary, ftCursor, ftFixedChar, ftWideString,
@@ -199,6 +227,7 @@ ftUnknown, ftString, ftSmallint, ftInteger, ftWord,
       ftBytes:    Result := Result + ' [char](' + IntToStr(field.DataSize) + ')';
       ftSmallint: Result := Result + ' [smallint]';
       ftInteger:  Result := Result + ' [int]';
+      ftLargeint: Result := Result + ' [bigint]';
       ftWord:     Result := Result + ' [tinyint]';
       ftAutoInc:  Result := Result + ' [int]';
       ftBoolean:  Result := Result + ' [bit]';
@@ -210,6 +239,9 @@ ftUnknown, ftString, ftSmallint, ftInteger, ftWord,
       ftBlob:     Result := Result + ' [varbinary](max)';
       ftMemo:     Result := Result + ' [varchar](max)';
       ftGraphic:  Result := Result + ' [varbinary](max)';
+      ftGuid:     Result := Result + ' [uniqueidentifier]';
+      ftBCD:      Result := Result + ' [money]';
+      ftVarBytes: Result := Result + ' [sqlvariant]';
     else
       fieldType := GetEnumName(TypeInfo(TFieldType),integer(field.DataType));
       tmp := GetCustomMapping(fieldType);
@@ -233,6 +265,7 @@ ftUnknown, ftString, ftSmallint, ftInteger, ftWord,
           ftBytes:    Result := Result + ' [char](' + IntToStr(field.DataSize) + ')';
           ftSmallint: Result := Result + ' [smallint]';
           ftInteger:  Result := Result + ' [int]';
+          ftLargeint: Result := Result + ' [bigint]';
           ftWord:     Result := Result + ' [tinyint]';
           ftAutoInc:  Result := Result + ' [int]';
           ftBoolean:  Result := Result + ' [bit]';
@@ -244,6 +277,9 @@ ftUnknown, ftString, ftSmallint, ftInteger, ftWord,
           ftBlob:     Result := Result + ' [varbinary](max)';
           ftMemo:     Result := Result + ' [varchar](max)';
           ftGraphic:  Result := Result + ' [varbinary](max)';
+          ftGuid:     Result := Result + ' [uniqueidentifier]';
+          ftBCD:      Result := Result + ' [money]';
+          ftVarBytes: Result := Result + ' [sqlvariant]';
         else
           AddError('Need to add: ' + fieldType + ' Size:  ' + IntToStr(field.DataSize));
         end;
@@ -294,26 +330,33 @@ begin
 end;
 
 procedure TfrmMain.Generate;
-var
-  name: string;
 begin
   if lbTables.ItemIndex > -1 then
   begin
     pb.Position := 0;
     pb.Visible := True;
-    name := lbTables.Items[lbTables.ItemIndex];
-    if pos('dbo.', name) = 1 then
-      delete(name, 1, 4);
+    _tableName := lbTables.Items[lbTables.ItemIndex];
+    if pos('dbo.', _tableName) = 1 then
+      delete(_tableName, 1, 4);
     if lbTables.ItemIndex <> _oldIndex then
     begin
       _Query.Active := False;
       if not _insert then
-        _Query.SQL := 'select * from "' + name + '" where 1=0'
+        _Query.SQL := 'select * from "' + _tableName + '" where 1=0'
       else
-        _Query.SQL := 'select * from "' + name + '"';
-        //_Query.SQL := 'select * from "' + name + '" where id in (''5562299'', ''66161'', ''66154'', ''66163'', ''66167'')';
+        _Query.SQL := 'select * from "' + _tableName + '"';
+        //_Query.SQL := 'select * from "' + _tableName + '" where id in (''5562299'', ''66161'', ''66154'', ''66163'', ''66167'')';
       Screen.Cursor := crSQLWait;
-      _Query.Active := True;
+      try
+        _Query.Active := True;
+      except
+        on E: Exception do
+        begin
+          AddError(E.Message);
+          Screen.Cursor := crDefault;
+          Exit;
+        end;
+      end;
       Screen.Cursor := crDefault;
     end;
 
@@ -322,16 +365,16 @@ begin
       ClearSQL;
 
     if not cbNoSchema.Checked then
-      GenerateSQL(_Query, name, txtSchema.Text);
+      GenerateSQL(_Query, _tableName, txtSchema.Text);
 
     if _insert then
-      GenerateInsert(_Query, name, txtSchema.Text);
+      GenerateInsert(_Query, _tableName, txtSchema.Text);
 
     _oldIndex := lbTables.ItemIndex;
 
     // Save either the individual table, or the database script
     if not cbDont.Checked then
-      SaveSQL(name)
+      SaveSQL(_tableName)
     else
       SaveSQL(cboBDE.Items[cboBDE.ItemIndex]);
     Screen.Cursor := crDefault;
@@ -360,11 +403,13 @@ procedure TfrmMain.bCustomClick(Sender: TObject);
     mCustom.Lines.Add('ftBytes=[char](?)');
     mCustom.Lines.Add('ftSmallint=[smallint]');
     mCustom.Lines.Add('ftInteger=[int]');
+    mCustom.Lines.Add('ftLargeint=[bigint]');
     mCustom.Lines.Add('ftWord=[tinyint]');
     mCustom.Lines.Add('ftAutoInc=[int]');
     mCustom.Lines.Add('ftBoolean=[bit]');
     mCustom.Lines.Add('ftFloat=[float]');
     mCustom.Lines.Add('ftCurrency=[money]');
+    mCustom.Lines.Add('ftBCD=[money]');
     if _2005 then
     begin
       mCustom.Lines.Add('ftDate=[datetime]');
@@ -379,6 +424,8 @@ procedure TfrmMain.bCustomClick(Sender: TObject);
     mCustom.Lines.Add('ftBlob=[varbinary](max)');
     mCustom.Lines.Add('ftMemo=[varchar](max)');
     mCustom.Lines.Add('ftGraphic=[varbinary](max)');
+    mCustom.Lines.Add('ftBCD=[uniqueidentifier]');
+    mCustom.Lines.Add('ftVarBytes=[sqlvariant]');
     pcMain.ActivePage := tsCustom;
   end;
 begin
@@ -500,6 +547,25 @@ function TfrmMain.GetSQLInsert(field: TField): string;
     end;
   end;
 
+  function WideStringToString(const ws: WideString; codePage: Word): String;
+  var
+    l: integer;
+  begin
+    if ws = '' then
+      Result := ''
+    else
+    begin
+      l := WideCharToMultiByte(codePage,
+        WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,
+        @ws[1], - 1, nil, 0, nil, nil);
+      SetLength(Result, l - 1);
+      if l > 1 then
+        WideCharToMultiByte(codePage,
+          WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,
+          @ws[1], - 1, @Result[1], l - 1, nil, nil);
+    end;
+  end; { WideStringToString }
+
   function customStringReplace(OriginalString, Pattern, Replace: string): string;
   {-----------------------------------------------------------------------------
     Procedure: customStringReplace
@@ -544,14 +610,17 @@ var
   PNG: TPNGObject;
   ms: TMemoryStream;
   year, month, day: Word;
+  s: WideString;
+  error: Boolean;
 begin
+  error := false;
   if field.IsNull then
     Result := 'null'
   else
   //if field.AsString = '28' then
   //  ShowMessage('Found it!');
-  case field.DataType of
-    ftString, ftMemo, ftBytes:
+  case field.DataType of                     {I'm assuming the guid will work as a string}
+    ftString, ftWideString, ftMemo, ftBytes, ftGuid:
     begin
       // Remove ticks '
       Result := '''' + StringReplace(field.AsString, '''', '''''', [rfReplaceAll]) + '''';
@@ -568,7 +637,7 @@ begin
           Result := '''' + FormatDateTime('yyyy-mm-dd hh:nn:ss', field.AsDateTime) + '''';
       end;
     ftTime: Result := '''' + FormatDateTime('hh:nn:ss', field.AsDateTime) + '''';
-    ftInteger, ftSmallInt, ftFloat, ftCurrency, ftAutoInc, ftWord: Result := field.AsString;
+    ftInteger, ftLargeint, ftSmallint, ftFloat, ftCurrency, ftAutoInc, ftWord, ftBCD, ftVarBytes: Result := field.AsString;
     ftBoolean:
     // The string values TRUE and FALSE can be converted to bit values:
     // TRUE is converted to 1 and FALSE is converted to 0.
@@ -605,39 +674,56 @@ begin
           tmp := GetCustomMapping(tmp);
           if Trim(tmp) = '' then tmp := 'varbinary(max)';
           try
-            Pic.Assign((field as TBlobField)); // Load the bitmap
-            ms := TMemoryStream.Create;
-            try
-              if cbPNG.Checked then
-              begin
-                PNG.Assign(Pic); // Convert to PNG
-                PNG.SaveToStream(ms);
-              end
-              else
-                Pic.SaveToStream(ms);
-              SetString(Result,PChar(ms.memory),ms.Size);
-              // Moved below
-              //Result := 'convert('+tmp+', ' + '''' + StringToHex(Result) + ''')';
-              //Result := '''' + '0x' + StringToHex(Result) + '''';
-              //Result := '''' + StringToHex(field.AsString) + '''';
-            finally
-              FreeAndNil(ms);
-            end;
+            //try
+              Pic.Assign((field as TBlobField)); // Load the bitmap
+              ms := TMemoryStream.Create;
+              try
+                if cbPNG.Checked then
+                begin
+                  PNG.Assign(Pic); // Convert to PNG
+                  PNG.SaveToStream(ms);
+                end
+                else
+                  Pic.SaveToStream(ms);
+                SetString(Result,PChar(ms.memory),ms.Size);
+                // Moved below
+                //Result := 'convert('+tmp+', ' + '''' + StringToHex(Result) + ''')';
+                //Result := '''' + '0x' + StringToHex(Result) + '''';
+                //Result := '''' + StringToHex(field.AsString) + '''';
+              finally
+                FreeAndNil(ms);
+              end;
+            //except
+            //  // Assume the blob/graphic is an xml column...???
+            //  s := field.AsVariant;
+            //  Result := s;//StringReplace(s, #0, '', [rfReplaceAll]);
+            //  //Result := '''' + WideStringToString(Result, CP_THREAD_ACP) + '''';
+            //  AddError('Table: ' + _tableName + ' Cannot import this field properly');
+            //  error := True;
+            //end;
           finally
             FreeAndNil(Pic);
             FreeAndNil(PNG);
           end;
         except
           // We're not an image, so assume just text
-          Result := field.AsString;
+          s := field.AsVariant;
+          //Result := '''' + WideStringToString(s, CP_ACP) + '''';
+          Result := '''' + s + '''';
+          error := True;
         end;
 
-        case rgBinary.ItemIndex of
-          0:Result := 'convert('+tmp+', ' + '''' + StringToHex(Result) + ''')';
-          1:Result := '''' + '0x' + StringToHex(Result) + '''';
-          2:Result := '''' + StringToHex(Result) + '''';
+        if not error then
+        begin
+          // I don't care to convert anything if there was an error...???
+          case rgBinary.ItemIndex of
+            0:Result := 'convert('+tmp+', ' + '''' + StringToHex(Result) + ''')';
+            1:Result := '''' + '0x' + StringToHex(Result) + '''';
+            2:Result := '''' + StringToHex(Result) + '''';
+          end;
         end;
-
+        //else
+        //  Result := '''' + WideStringToString(s, CP_OEMCP) + '''';
       end;
   else
     AddError('Insert: ' + GetEnumName(TypeInfo(TFieldType),integer(field.DataType)) + ': ' + field.AsString);
@@ -729,6 +815,7 @@ begin
         sl.Add('sqlcmd -d ' + db + ' -S ' + server + ' -i __Preflight.sql '
           + '-e -b -t 65535');
     end;
+
     for i := 0 to pred(lbTables.Count) do
     begin
       lbTables.ItemIndex := i;
@@ -864,6 +951,7 @@ begin
     cbPrePost.Checked := CreatePrePostflight;
     mCustom.Lines.Assign(CustomMappings);
     cbOutput.Checked := GenerateOutput;
+    cbSort.Checked := SortCreate;
     _exclude := Exclude;
     _include := Include;
   end;
@@ -891,6 +979,7 @@ begin
     CustomMappings := mCustom.Lines;
     GenerateOutput := cbOutput.Checked;
     //mCustom.Lines.Assign(CustomMappings);
+    SortCreate := cbSort.Checked;
     Exclude := _exclude;
     Include := _include;
 
@@ -906,6 +995,11 @@ end;
 procedure TfrmMain.MyHint(Sender: TObject);
 begin
   lblHint.Caption := Application.Hint;
+end;
+
+procedure TfrmMain.cbSortClick(Sender: TObject);
+begin
+  _sort := cbSort.Checked;
 end;
 
 end.

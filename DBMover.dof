@@ -111,11 +111,11 @@ ProjectLang=
 RootDir=C:\Program Files\Borland\Delphi7\Bin\
 [Version Info]
 IncludeVerInfo=1
-AutoIncBuild=1
-MajorVer=1
-MinorVer=0
-Release=0
-Build=2
+AutoIncBuild=0
+MajorVer=11
+MinorVer=11
+Release=23
+Build=4
 Debug=0
 PreRelease=0
 Special=0
@@ -126,7 +126,7 @@ CodePage=1252
 [Version Info Keys]
 CompanyName=
 FileDescription=
-FileVersion=1.0.0.2
+FileVersion=11.11.23.4
 InternalName=
 LegalCopyright=
 LegalTrademarks=
@@ -134,3 +134,6 @@ OriginalFilename=
 ProductName=
 ProductVersion=1.0.0.0
 Comments=
+[Excluded Packages]
+c:\program files\borland\delphi7\Bin\dclclxdb70.bpl=Borland CLX Database Components
+C:\Program Files\Borland\Delphi7\Bin\dclclxstd70.bpl=Borland CLX Standard Components

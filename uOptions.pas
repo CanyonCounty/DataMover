@@ -28,6 +28,7 @@ type
     fCustomMappings: TStrings;
     fGenerateInsert: Boolean;
     fGenerateOutput: Boolean;
+    fSortCreate: Boolean;
     procedure SetBinaryConvert(const Value: Integer);
     procedure SetCustomMappings(const Value: TStrings);
   public
@@ -54,6 +55,7 @@ type
     property Include: string read fInclude write fInclude;
     property CustomMappings: TStrings read fCustomMappings write SetCustomMappings;
     property GenerateOutput: Boolean read fGenerateOutput write fGenerateOutput;
+    property SortCreate: Boolean read fSortCreate write fSortCreate;
   end;
 
 var
@@ -130,6 +132,7 @@ begin
   //fFileName := ChangeFileExt(FileName, '.dat');
   if FileExists(fFileName) then
     Self := TOptions(ReadComponentResFile(fFileName, Self));
+  if (Self = nil) then beep;
 end;
 
 procedure TOptions.SaveConfig;
