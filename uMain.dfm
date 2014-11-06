@@ -2,8 +2,8 @@ object frmMain: TfrmMain
   Left = 291
   Top = 114
   AutoScroll = False
-  Caption = 'Paradox to SQL Server'
-  ClientHeight = 466
+  Caption = 'BDE DBMover'
+  ClientHeight = 468
   ClientWidth = 954
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -12,15 +12,23 @@ object frmMain: TfrmMain
   Font.Name = 'MS Sans Serif'
   Font.Style = []
   OldCreateOrder = False
+  OnClose = FormClose
   OnCreate = FormCreate
   DesignSize = (
     954
-    466)
+    468)
   PixelsPerInch = 96
   TextHeight = 13
+  object lblHint: TLabel
+    Left = 16
+    Top = 448
+    Width = 19
+    Height = 13
+    Caption = 'Hint'
+  end
   object GroupBox1: TGroupBox
     Left = 16
-    Top = 20
+    Top = 8
     Width = 281
     Height = 269
     Caption = 'Copy From'
@@ -70,6 +78,7 @@ object frmMain: TfrmMain
       Width = 51
       Height = 25
       Caption = 'Exclude'
+      Enabled = False
       TabOrder = 4
       OnClick = bExcludeClick
     end
@@ -79,13 +88,14 @@ object frmMain: TfrmMain
       Width = 51
       Height = 25
       Caption = 'Include'
+      Enabled = False
       TabOrder = 5
       OnClick = bIncludeClick
     end
   end
   object GroupBox2: TGroupBox
     Left = 304
-    Top = 20
+    Top = 8
     Width = 633
     Height = 269
     Anchors = [akLeft, akTop, akRight]
@@ -108,9 +118,9 @@ object frmMain: TfrmMain
   end
   object pcMain: TPageControl
     Left = 16
-    Top = 296
+    Top = 288
     Width = 921
-    Height = 157
+    Height = 159
     ActivePage = tsOptions
     Anchors = [akLeft, akTop, akRight, akBottom]
     TabOrder = 2
@@ -135,12 +145,12 @@ object frmMain: TfrmMain
       ImageIndex = 1
       DesignSize = (
         913
-        129)
+        131)
       object mError: TMemo
         Left = 4
         Top = 8
         Width = 901
-        Height = 113
+        Height = 115
         Anchors = [akLeft, akTop, akRight, akBottom]
         ScrollBars = ssBoth
         TabOrder = 0
@@ -158,14 +168,14 @@ object frmMain: TfrmMain
         Caption = 'Schema Name'
       end
       object Label3: TLabel
-        Left = 688
+        Left = 648
         Top = 8
         Width = 62
         Height = 13
         Caption = 'Server Name'
       end
       object Label4: TLabel
-        Left = 688
+        Left = 648
         Top = 52
         Width = 77
         Height = 13
@@ -178,25 +188,25 @@ object frmMain: TfrmMain
         Height = 21
         Hint = 'The schema you would like the table to go to'
         ParentShowHint = False
-        ShowHint = True
+        ShowHint = False
         TabOrder = 0
         Text = 'dbo'
       end
       object cbDebug: TCheckBox
-        Left = 342
-        Top = 26
+        Left = 306
+        Top = 40
         Width = 119
         Height = 17
         Hint = 'Adds the field size to the query'
         Caption = 'Data Size Comment'
         ParentShowHint = False
-        ShowHint = True
+        ShowHint = False
         TabOrder = 5
         OnClick = cbDebugClick
       end
       object cbNull: TCheckBox
-        Left = 342
-        Top = 48
+        Left = 306
+        Top = 60
         Width = 97
         Height = 17
         Hint = 
@@ -204,35 +214,21 @@ object frmMain: TfrmMain
           'ne nullable fields'
         Caption = 'Null / Not Null'
         ParentShowHint = False
-        ShowHint = True
+        ShowHint = False
         TabOrder = 6
         OnClick = cbNullClick
       end
       object cbCustom: TCheckBox
-        Left = 342
-        Top = 72
+        Left = 306
+        Top = 80
         Width = 149
         Height = 17
         Hint = 'Select this option if you don'#39't want to use the defaults'
         Caption = 'Use Custom Mapping First'
         ParentShowHint = False
-        ShowHint = True
+        ShowHint = False
         TabOrder = 7
         OnClick = cbCustomClick
-      end
-      object bCustom: TButton
-        Left = 342
-        Top = 92
-        Width = 145
-        Height = 25
-        Hint = 
-          'Clicking this dumps the internal mappings to the Custom Mappings' +
-          ' box so you can adjust as needed'
-        Caption = 'Generate Custom'
-        ParentShowHint = False
-        ShowHint = True
-        TabOrder = 8
-        OnClick = bCustomClick
       end
       object cbInsert: TCheckBox
         Left = 12
@@ -244,7 +240,7 @@ object frmMain: TfrmMain
           'nts for them'
         Caption = 'Generate Insert'
         ParentShowHint = False
-        ShowHint = True
+        ShowHint = False
         TabOrder = 3
         OnClick = cbInsertClick
       end
@@ -256,7 +252,7 @@ object frmMain: TfrmMain
         Hint = 'If you want to generate one LARGE SQL script'
         Caption = 'Don'#39't Clear Generated SQL'
         ParentShowHint = False
-        ShowHint = True
+        ShowHint = False
         TabOrder = 2
       end
       object cbOnly: TCheckBox
@@ -269,12 +265,12 @@ object frmMain: TfrmMain
           ' the SQL field above'
         Caption = 'Only Write To File'
         ParentShowHint = False
-        ShowHint = True
+        ShowHint = False
         TabOrder = 1
       end
       object cb2008: TCheckBox
-        Left = 342
-        Top = 4
+        Left = 306
+        Top = 20
         Width = 107
         Height = 17
         Hint = 
@@ -282,23 +278,90 @@ object frmMain: TfrmMain
           's, this option uses 2008 syntax (field types)'
         Caption = 'Use 2008 Syntax'
         ParentShowHint = False
-        ShowHint = True
+        ShowHint = False
         TabOrder = 4
         OnClick = cb2008Click
       end
       object eServerName: TEdit
-        Left = 688
+        Left = 648
         Top = 24
         Width = 165
         Height = 21
-        TabOrder = 9
+        Hint = 'SQL Server Name (only needed if you use the build button)'
+        TabOrder = 11
       end
       object eDBName: TEdit
-        Left = 688
+        Left = 648
         Top = 68
         Width = 165
         Height = 21
+        Hint = 
+          'SQL Server Database Name (only needed if you use the build butto' +
+          'n)'
+        TabOrder = 12
+      end
+      object cbPrePost: TCheckBox
+        Left = 648
+        Top = 100
+        Width = 125
+        Height = 17
+        Hint = 
+          'Creates a Preflight and Postfilght scripts (only used if you use' +
+          ' the build button) - will NOT be overwritten if it already exist' +
+          's'
+        Caption = 'Create Pre/Postflight'
+        TabOrder = 13
+      end
+      object cbNoSchema: TCheckBox
+        Left = 306
+        Top = 100
+        Width = 199
+        Height = 17
+        Hint = 'Only Generates insert statements (no create)'
+        Caption = 'Don'#39't Generate Schema (Insert Only)'
+        TabOrder = 8
+      end
+      object cbPNG: TCheckBox
+        Left = 532
+        Top = 20
+        Width = 97
+        Height = 17
+        Hint = 'This will convert bitmap images to png images'
+        Caption = 'BMP to PNG'
+        ParentShowHint = False
+        ShowHint = False
+        TabOrder = 9
+      end
+      object rgBinary: TRadioGroup
+        Left = 532
+        Top = 44
+        Width = 97
+        Height = 73
+        Hint = 
+          'Convert will add the convert method call - 0x + Hex will convert' +
+          ' the string to Hex and append 0x (necessary for Paradox) - Just ' +
+          'Hex will just convert the binary data to hex'
+        Caption = 'Binary Convert'
+        Items.Strings = (
+          'Convert'
+          '0x + Hex'
+          'Just Hex')
+        ParentShowHint = False
+        ShowHint = False
         TabOrder = 10
+      end
+      object cbOutput: TCheckBox
+        Left = 780
+        Top = 100
+        Width = 109
+        Height = 17
+        Hint = 
+          'This will create output files for each generated script (sqlcmd ' +
+          '-o option)'
+        Caption = 'Generate Output'
+        ParentShowHint = False
+        ShowHint = True
+        TabOrder = 14
       end
     end
     object tsCustom: TTabSheet
@@ -306,12 +369,12 @@ object frmMain: TfrmMain
       ImageIndex = 3
       DesignSize = (
         913
-        129)
+        131)
       object mCustom: TMemo
         Left = 4
         Top = 8
         Width = 309
-        Height = 117
+        Height = 119
         Anchors = [akLeft, akTop, akBottom]
         ScrollBars = ssVertical
         TabOrder = 0
@@ -321,7 +384,7 @@ object frmMain: TfrmMain
         Left = 316
         Top = 8
         Width = 581
-        Height = 117
+        Height = 119
         Anchors = [akLeft, akTop, akRight, akBottom]
         Color = clBtnFace
         Lines.Strings = (
@@ -346,16 +409,31 @@ object frmMain: TfrmMain
         ScrollBars = ssVertical
         TabOrder = 1
       end
+      object bCustom: TButton
+        Left = 726
+        Top = 92
+        Width = 145
+        Height = 25
+        Hint = 
+          'Clicking this dumps the internal mappings to the Custom Mappings' +
+          ' box so you can adjust as needed'
+        Caption = 'Generate Custom'
+        ParentShowHint = False
+        ShowHint = False
+        TabOrder = 2
+        OnClick = bCustomClick
+      end
     end
   end
   object pb: TProgressBar
     Left = 16
-    Top = 456
+    Top = 448
     Width = 921
-    Height = 10
+    Height = 13
     Smooth = True
     Step = 1
     TabOrder = 3
+    Visible = False
   end
   object bdeQuery: TQuery
     SessionName = 'Session_1'

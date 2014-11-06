@@ -3,7 +3,8 @@ program DBMover;
 uses
   Forms,
   uMain in 'uMain.pas' {frmMain},
-  uDBWrapper in 'uDBWrapper.pas';
+  uDBWrapper in 'uDBWrapper.pas',
+  uOptions in 'uOptions.pas';
 
 {$R *.res}
 

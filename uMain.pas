@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, DB, DBTables, StdCtrls, ExtCtrls, Grids, DBGrids, TypInfo,
-  ComCtrls, jpeg, DateUtils, ADODB, uDBWrapper;
+  ComCtrls, jpeg, DateUtils, ADODB, uDBWrapper, pngimage;
 
 type
   TfrmMain = class(TForm)
@@ -32,7 +32,6 @@ type
     mCustom: TMemo;
     mHelp: TMemo;
     cbCustom: TCheckBox;
-    bCustom: TButton;
     cbInsert: TCheckBox;
     cbDont: TCheckBox;
     pb: TProgressBar;
@@ -46,6 +45,13 @@ type
     eServerName: TEdit;
     Label4: TLabel;
     eDBName: TEdit;
+    cbPrePost: TCheckBox;
+    bCustom: TButton;
+    cbNoSchema: TCheckBox;
+    cbPNG: TCheckBox;
+    rgBinary: TRadioGroup;
+    lblHint: TLabel;
+    cbOutput: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure cboBDECloseUp(Sender: TObject);
     procedure lbTablesClick(Sender: TObject);
@@ -60,6 +66,7 @@ type
     procedure bGoClick(Sender: TObject);
     procedure bExcludeClick(Sender: TObject);
     procedure bIncludeClick(Sender: TObject);
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
   private
     { Private declarations }
     _debug: Boolean;
@@ -71,6 +78,7 @@ type
 //    _total: Integer;
     _sl: TStringList;
     _Query: TDBWrapper;
+    _tempdir: string;
     _exclude, _include: string;
     procedure Generate;
     procedure GetTables;
@@ -85,6 +93,10 @@ type
     procedure AddSQL(sql: string);
     procedure ClearSQL;
     procedure SaveSQL(tablename: string);
+    procedure CreatePrePost;
+    procedure ReadOptions;
+    procedure WriteOptions;
+    procedure MyHint(Sender: TObject);
   public
     { Public declarations }
     property Custom: Boolean read _custom write SetCustom default False;
@@ -96,12 +108,17 @@ var
 
 implementation
 
+uses uOptions;
+
 {$R *.dfm}
 
 procedure TfrmMain.FormCreate(Sender: TObject);
-const
-  tempdir = 'C:\Temp\DBMover\temp';
+var
+  tempdir: string;// = 'C:\Temp\DBMover\temp';
 begin
+  _tempdir := 'C:\Temp\DBMover\';
+  tempdir := _tempdir + 'temp';
+
   Constraints.MinHeight := Height;
   Constraints.MinWidth := Width;
 
@@ -120,6 +137,9 @@ begin
   _2005 := true;
   _sl := TStringList.Create;
   _Query := TDBWrapper.Create(bdeQuery, adoQuery);
+
+  ReadOptions;
+  Application.OnHint := MyHint;
 end;
 
 procedure TfrmMain.cboBDECloseUp(Sender: TObject);
@@ -127,6 +147,8 @@ begin
   Session.Active := False;
   GetTables;
   Session.Active := True;
+  bExclude.Enabled := lbTables.Items.Count > 0;
+  bInclude.Enabled := lbTables.Items.Count > 0;
 end;
 
 procedure TfrmMain.lbTablesClick(Sender: TObject);
@@ -173,6 +195,7 @@ ftUnknown, ftString, ftSmallint, ftInteger, ftWord,
   begin
     case field.DataType of
       ftString:   Result := Result + ' [varchar](' + IntToStr(field.DataSize) + ')';
+      ftWideString: Result := Result + '[nvarchar](' + IntToStr(field.DataSize) + ')';
       ftBytes:    Result := Result + ' [char](' + IntToStr(field.DataSize) + ')';
       ftSmallint: Result := Result + ' [smallint]';
       ftInteger:  Result := Result + ' [int]';
@@ -206,6 +229,7 @@ ftUnknown, ftString, ftSmallint, ftInteger, ftWord,
       begin
         case field.DataType of
           ftString:   Result := Result + ' [varchar](' + IntToStr(field.DataSize) + ')';
+          ftWideString: Result := Result + '[nvarchar](' + IntToStr(field.DataSize) + ')';
           ftBytes:    Result := Result + ' [char](' + IntToStr(field.DataSize) + ')';
           ftSmallint: Result := Result + ' [smallint]';
           ftInteger:  Result := Result + ' [int]';
@@ -276,7 +300,10 @@ begin
   if lbTables.ItemIndex > -1 then
   begin
     pb.Position := 0;
+    pb.Visible := True;
     name := lbTables.Items[lbTables.ItemIndex];
+    if pos('dbo.', name) = 1 then
+      delete(name, 1, 4);
     if lbTables.ItemIndex <> _oldIndex then
     begin
       _Query.Active := False;
@@ -284,6 +311,7 @@ begin
         _Query.SQL := 'select * from "' + name + '" where 1=0'
       else
         _Query.SQL := 'select * from "' + name + '"';
+        //_Query.SQL := 'select * from "' + name + '" where id in (''5562299'', ''66161'', ''66154'', ''66163'', ''66167'')';
       Screen.Cursor := crSQLWait;
       _Query.Active := True;
       Screen.Cursor := crDefault;
@@ -292,7 +320,9 @@ begin
     Screen.Cursor := crHourGlass;
     if not cbDont.Checked then
       ClearSQL;
-    GenerateSQL(_Query, name, txtSchema.Text);
+
+    if not cbNoSchema.Checked then
+      GenerateSQL(_Query, name, txtSchema.Text);
 
     if _insert then
       GenerateInsert(_Query, name, txtSchema.Text);
@@ -306,6 +336,7 @@ begin
       SaveSQL(cboBDE.Items[cboBDE.ItemIndex]);
     Screen.Cursor := crDefault;
     pb.Position := 0;
+    pb.Visible := False;
   end;
 end;
 
@@ -325,6 +356,7 @@ procedure TfrmMain.bCustomClick(Sender: TObject);
   begin
     mCustom.Lines.Clear;
     mCustom.Lines.Add('ftString=[varchar](?)');
+    mCustom.Lines.Add('ftWideString=[nvarchar](?)');
     mCustom.Lines.Add('ftBytes=[char](?)');
     mCustom.Lines.Add('ftSmallint=[smallint]');
     mCustom.Lines.Add('ftInteger=[int]');
@@ -387,8 +419,12 @@ var
   field: TField;
   total: Integer;
 begin
-  AddSQL('GO');
-  AddSQL('');
+  if not cbNoSchema.Checked then
+  begin
+    AddSQL('GO');
+    AddSQL('');
+  end;
+
   _Query.DisableControls;
   total := _Query.RecordCount;
   if total < 0 then
@@ -504,7 +540,8 @@ function TfrmMain.GetSQLInsert(field: TField): string;
 
 var
   tmp: string;
-  Pic : TBitmap;
+  Pic: TBitmap;
+  PNG: TPNGObject;
   ms: TMemoryStream;
   year, month, day: Word;
 begin
@@ -541,6 +578,7 @@ begin
       else
         //Result := '''false''';
         Result := '''0''';
+    {
     ftBlob:
       begin
         // Get custom mapping if any?
@@ -549,30 +587,57 @@ begin
         if Trim(tmp) = '' then tmp := 'varbinary(max)';
         // Don't add the 0x to the hex string C# doesn't like it
         Result := 'convert('+tmp+', ' + '''' + StringToHex(field.AsString) + ''')';
-        //ShowMessage(HexToString(StringToHex(field.AsString)));
+        // But add the 0x if you're not calling convert
+        //Result := '''' + '0x' + StringToHex(field.AsString) + '''';
+        // But only if you're Paradox
+        //Result := '''' + StringToHex(field.AsString) + '''';
       end;
-    ftGraphic:
+      //}
+    ftGraphic, ftBlob:
       begin
         // Graphic is a different beast - if it goes through the blob code
         // the bmp header is messed up. I'm not sure why.
         Result := '';
         Pic := TBitmap.Create;
+        PNG := TPNGObject.Create;
         try
           tmp := GetEnumName(TypeInfo(TFieldType),integer(field.DataType));
           tmp := GetCustomMapping(tmp);
           if Trim(tmp) = '' then tmp := 'varbinary(max)';
-          Pic.Assign((field as TBlobField));
-          ms := TMemoryStream.Create;
           try
-            Pic.SaveToStream(ms);
-            SetString(Result,PChar(ms.memory),ms.Size);
-            Result := 'convert('+tmp+', ' + '''' + StringToHex(Result) + ''')';
+            Pic.Assign((field as TBlobField)); // Load the bitmap
+            ms := TMemoryStream.Create;
+            try
+              if cbPNG.Checked then
+              begin
+                PNG.Assign(Pic); // Convert to PNG
+                PNG.SaveToStream(ms);
+              end
+              else
+                Pic.SaveToStream(ms);
+              SetString(Result,PChar(ms.memory),ms.Size);
+              // Moved below
+              //Result := 'convert('+tmp+', ' + '''' + StringToHex(Result) + ''')';
+              //Result := '''' + '0x' + StringToHex(Result) + '''';
+              //Result := '''' + StringToHex(field.AsString) + '''';
+            finally
+              FreeAndNil(ms);
+            end;
           finally
-            FreeAndNil(ms);
+            FreeAndNil(Pic);
+            FreeAndNil(PNG);
           end;
-        finally
-          FreeAndNil(Pic);
+        except
+          // We're not an image, so assume just text
+          Result := field.AsString;
         end;
+
+        case rgBinary.ItemIndex of
+          0:Result := 'convert('+tmp+', ' + '''' + StringToHex(Result) + ''')';
+          1:Result := '''' + '0x' + StringToHex(Result) + '''';
+          2:Result := '''' + StringToHex(Result) + '''';
+        end;
+
       end;
   else
     AddError('Insert: ' + GetEnumName(TypeInfo(TFieldType),integer(field.DataType)) + ': ' + field.AsString);
@@ -597,16 +662,14 @@ begin
 end;
 
 procedure TfrmMain.SaveSQL(tablename: string);
-const
-  tempdir = 'C:\Temp\DBMover\';
 begin
   //t := GetEnvironmentVariable('TEMP');
-  ForceDirectories(tempdir);
+  ForceDirectories(_tempdir);
 
   if cbOnly.Checked then
-    _sl.SaveToFile(tempdir+tablename+'.autogen.sql')
+    _sl.SaveToFile(_tempdir+tablename+'.autogen.sql')
   else
-    memo.Lines.SaveToFile(tempdir+tablename+'.autogen.sql');
+    memo.Lines.SaveToFile(_tempdir+tablename+'.autogen.sql');
 end;
 
 procedure TfrmMain.cb2008Click(Sender: TObject);
@@ -615,14 +678,24 @@ begin
 end;
 
 procedure TfrmMain.bGoClick(Sender: TObject);
-const
-  tempdir = 'C:\Temp\DBMover\';
 var
   i: Integer;
   sl: TStringList;
   name: string;
   server, db: string;
 begin
+  bGo.Enabled := False;
+
+  // I know this was set before, but I want to reset it
+  // this stops it from appending over and over again
+  _tempdir := 'C:\Temp\DBMover\';
+  _tempdir := _tempdir + cboBDE.Items[cboBDE.ItemIndex];
+  _tempdir := _tempdir + '\' + FormatDateTime('mmddyyyy', Now) + '\';
+  ForceDirectories(_tempdir);
+
+  if FileExists(_tempdir+'run.bat') then
+    MoveFile(PAnsiChar(_tempdir+'run.bat'), PAnsiChar(_tempdir+'run.bat.old'));
+
   server := eServerName.Text;
   db := eDBName.Text;
   // Check Server Name
@@ -645,19 +718,46 @@ begin
   // Go through all items in the list box
   sl := TStringList.Create;
   try
+    if cbPrePost.Checked then
+    begin
+      CreatePrePost;
+      // Preflight.sql
+      if cbOutput.Checked then
+        sl.Add('sqlcmd -d ' + db + ' -S ' + server + ' -i __Preflight.sql -o '
+          + '__Preflight.output.txt -e -b -t 65535')
+      else
+        sl.Add('sqlcmd -d ' + db + ' -S ' + server + ' -i __Preflight.sql '
+          + '-e -b -t 65535');
+    end;
     for i := 0 to pred(lbTables.Count) do
     begin
       lbTables.ItemIndex := i;
       name := lbTables.Items[lbTables.ItemIndex];
-      sl.Add('sqlcmd -d ' + db + ' -H ' + server + ' -i ' + name + '.autogen.sql -o '
-        + name + '.output.txt -e -b -t 65535');
+      if cbOutput.Checked then
+        sl.Add('sqlcmd -d ' + db + ' -S ' + server + ' -i ' + name + '.autogen.sql -o '
+          + name + '.output.txt -e -b -t 65535')
+      else
+        sl.Add('sqlcmd -d ' + db + ' -S ' + server + ' -i ' + name + '.autogen.sql '
+          + '-e -b -t 65535');
       Generate;
-      sl.SaveToFile(tempdir+'run.bat');
+      sl.SaveToFile(_tempdir+'run.bat');
     end;
-    sl.SaveToFile(tempdir+'run.bat');
+
+    if cbPrePost.Checked then
+    begin
+      if cbOutput.Checked then
+        sl.Add('sqlcmd -d ' + db + ' -S ' + server + ' -i _Postflight.sql -o '
+          + '_Postflight.output.txt -e -b -t 65535')
+      else
+        sl.Add('sqlcmd -d ' + db + ' -S ' + server + ' -i _Postflight.sql '
+          + '-e -b -t 65535');
+    end;
+    sl.SaveToFile(_tempdir+'run.bat');
   finally
     FreeAndNil(sl);
   end;
+
+  bGo.Enabled := True;
 end;
 
 procedure TfrmMain.bExcludeClick(Sender: TObject);
@@ -717,6 +817,95 @@ begin
           lbTables.Items.Delete(i);
     end;
   end;
+end;
+
+procedure TfrmMain.CreatePrePost;
+var
+  sl: TStringList;
+begin
+  // Preflight is named with double underscore so it shows up first
+  // in an Explorer window (if sorted by name)
+  sl := TStringList.Create;
+  try
+    sl.Add('-- Add your Preflight SQL commands here');
+    sl.Add('-- Preflight occurs before any other script runs');
+    sl.Add('');
+    if not FileExists(_tempdir+'__Preflight.sql') then
+      sl.SaveToFile(_tempdir+'__Preflight.sql');
+
+    sl.Clear;
+    sl.Add('-- Add your Postflight SQL commands here');
+    sl.Add('-- Postflight occurs after all other script run');
+    sl.Add('');
+    if not FileExists(_tempdir+'_Postflight.sql') then
+      sl.SaveToFile(_tempdir+'_Postflight.sql');
+  finally
+    FreeAndNil(sl);
+  end;
+end;
+
+procedure TfrmMain.ReadOptions;
+begin
+  with Options do
+  begin
+    txtSchema.Text := SchemaName;
+    cbOnly.Checked := OnlyWriteFile;
+    cbDont.Checked := DontClearSQL;
+    cbInsert.Checked := GenerateInsert;
+    cb2008.Checked := Use2008Syntax;
+    cbDebug.Checked := DataSizeComment;
+    cbNull.Checked := NullNotNull;
+    cbCustom.Checked := UseCustomMappingFirst;
+    cbNoSchema.Checked := InsertOnly;
+    cbPNG.Checked := BMPToPNG;
+    rgBinary.ItemIndex := BinaryConvert;
+    eServerName.Text := ServerName;
+    eDBName.Text := DatabaseName;
+    cbPrePost.Checked := CreatePrePostflight;
+    mCustom.Lines.Assign(CustomMappings);
+    cbOutput.Checked := GenerateOutput;
+    _exclude := Exclude;
+    _include := Include;
+  end;
+end;
+
+procedure TfrmMain.WriteOptions;
+begin
+  with Options do
+  begin
+    SchemaName := txtSchema.Text;
+    OnlyWriteFile := cbOnly.Checked;
+
+    DontClearSQL := cbDont.Checked;
+    GenerateInsert := cbInsert.Checked;
+    Use2008Syntax := cb2008.Checked;
+    DataSizeComment := cbDebug.Checked;
+    NullNotNull := cbNull.Checked;
+    UseCustomMappingFirst := cbCustom.Checked;
+    InsertOnly := cbNoSchema.Checked;
+    BMPToPNG := cbPNG.Checked;
+    BinaryConvert := rgBinary.ItemIndex;
+    ServerName := eServerName.Text;
+    DatabaseName := eDBName.Text;
+    CreatePrePostflight := cbPrePost.Checked;
+    CustomMappings := mCustom.Lines;
+    GenerateOutput := cbOutput.Checked;
+    //mCustom.Lines.Assign(CustomMappings);
+    Exclude := _exclude;
+    Include := _include;
+
+    //SaveConfig; // This is called on Destroy
+  end;
+end;
+
+procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  WriteOptions;
+end;
+
+procedure TfrmMain.MyHint(Sender: TObject);
+begin
+  lblHint.Caption := Application.Hint;
 end;
 
 end.
